@@ -1,0 +1,7 @@
+__pycache__
+venv
+*.py[cod]
+
+# my testing file
+
+test.py

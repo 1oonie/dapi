@@ -1,0 +1,15 @@
+[project]
+name = "dapi"
+version = "0.1.0"
+description = "An implementation of the discord API"
+authors = [
+    "AnimateShadows"
+]
+license = "http://www.wtfpl.net/"
+readme = "README.md"
+repository = "https://github.com/AnimateShadows/dapi"
+requires-python = ">=3.9"
+
+[dependencies]
+aiohttp = "<=3.7.4"
+attrs = "<=21.2.0"
