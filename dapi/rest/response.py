@@ -29,6 +29,11 @@ class Response:
     def json(self) -> Mapping[str, Any]:
         """Returns the parsed JSON data of the response, will
         raise a `ValueError` if the content type is incorrect.
+
+        Returns
+        -------
+        typing.Mapping[builtins.str, typing.Any]
+            The parsed JSON data of the response.
         """
 
         if self.content_type == "application/json":

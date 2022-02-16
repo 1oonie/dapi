@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Mapping, List, Optional, Tuple, Union
 
 import attr
 
@@ -12,8 +12,10 @@ class ItemsList(list):
 
 
 def flatten(
-    d: Union[Dict[str, Any], ItemsList], path: Optional[str] = None
+    d: Union[Mapping[str, Any], ItemsList], path: Optional[str] = None
 ) -> List[Tuple[str, Tuple[str, str]]]:
+    """Recursively flattens the strange error object provided by discord"""
+
     if path is None:
         path = ""
 
@@ -43,10 +45,10 @@ class HTTPException(ClientException):
     code: int = attr.field()
     """ The HTTP status code """
 
-    data: Union[str, Dict[str, Any]] = attr.field()
+    data: Union[str, Mapping[str, Any]] = attr.field()
     """ The actual data of the request """
 
-    def __init__(self, code: int, data: Union[str, Dict[str, Any]]):
+    def __init__(self, code: int, data: Union[str, Mapping[str, Any]]):
         self.code = code
         self.data = data
 
@@ -72,7 +74,7 @@ class HTTPException(ClientException):
         very strangely for some reason.
         """
 
-        if isinstance(self.data, dict):
+        if not isinstance(self.data, str):
             if "errors" not in self.data:
                 return None
 
@@ -85,6 +87,9 @@ class HTTPException(ClientException):
             return self.data
 
     def __repr__(self) -> str:
+        if isinstance(self.data, str):
+            return self.data
+
         return f"{self.message} ({self.errno})\n{self.errors}"
 
 

@@ -1,6 +1,7 @@
 import asyncio
+import functools
 import json as jsonlib
-from typing import Any, Dict, Final, List, Optional
+from typing import Any, Final, Mapping, MutableMapping, Optional
 
 import aiohttp
 import attr
@@ -9,6 +10,8 @@ from .. import __version__
 from .errors import HTTPException, TooManyRetries
 from .response import Response
 from .route import Route
+from .builders import FormBuilder, JSONBuilder, ParamsBuilder
+from .request import Request
 
 __all__ = ("RESTClient",)
 
@@ -41,63 +44,69 @@ class RESTClient:
     (recommended to use this format `DiscordBot ($url, $versionNumber)`)
     """
 
-    buckets: Dict[str, asyncio.Lock] = attr.field(init=False)
+    buckets: MutableMapping[str, asyncio.Lock] = attr.field(init=False)
     global_ratelimit: asyncio.Event = attr.field(init=False)
 
     def __attrs_post_init__(self):
-        self.buckets: Dict[str, asyncio.Lock] = {}
+        self.buckets = {}
 
-        self.global_ratelimit: asyncio.Event = asyncio.Event()
-        self.global_ratelimit.set()
+        self.global_ratelimit = asyncio.Event()
 
     async def request(
         self,
         *,
         route: Route,
-        json: Optional[Dict[str, Any]] = None,
-        form: Optional[List[Dict[str, Any]]] = None,
-        params: Optional[Dict[str, str]] = None,
+        json: Optional[JSONBuilder] = None,
+        form: Optional[FormBuilder] = None,
+        params: Optional[ParamsBuilder] = None,
         reason: Optional[str] = None,
+        headers: Optional[Mapping[str, Any]] = None,  # type: ignore
     ) -> Response:
-        """Makes a request to the provided `Route`. Provides
-        the following parameters:
+        """Makes a HTTP request to the provided `Route`.
 
-            `route` - the `Route` that you want to send a request
-                      to.
+        Parameters
+        ----------
+        route : dapi.rest.routes.Route
+            The route to request to.
+        json : typing.Optional[dapi.rest.builders.JSONBuilder]
+            JSON body of the request.
+        form : typing.Optional[dapi.rest.builders.FormBuilder]
+            The form to attach to the request.
+        params : typing.Optional[dapi.rest.builders.ParamsBuilder]
+            The request parameters.
+        reason : typing.Optional[str]
+            The reason for the request - if the endpoint supports the
+            `X-Audit-Log-Reason` header.
+        headers : typing.Optional[typing.Dict[builtins.str, typing.Any]]
+            The headers you want to add to the request (not really
+            that useful since the function will overwrite them anyway).
 
-            `json` - a dictionary of the json that you want to POST
-                     to that endpoint.
+        Raises
+        ------
+        dapi.rest.errors.HTTPException
+            Oh no! Something went wrong with the request, the
+            exception may provide some (slightly) useful
+            information as to why.
+        dapi.rest.errors.TooManyRetries
+            The maximum retry limit (5) has been reached.
 
-            `form` - an iterable of dictionaries denoting the form
-                     data (if applicable)
-
-            `params` - the parameters to put on the end of the URL
-
-            `reason` - the optional reason (will show up in the audit
-                       log) (if the endpoint supports the `X-Audit-Log-Reason`
-                       header).
+        Returns
+        -------
+        dapi.rest.response.Response
+            The corresponding response object denoting what
+            discord sent back to us.
         """
 
-        def form_factory() -> aiohttp.FormData:
-            assert form is not None
-            # should always be true, just for the typechecker
+        if headers is not None:
+            headers: Mapping[str, str] = {**headers}
+        else:
+            headers: Mapping[str, str] = {}
 
-            new = aiohttp.FormData()
-            for field in form:
-                new.add_field(**field)
-            return new
-
-        headers: Dict[str, str] = {
-            "Authorization": "Bot " + self.token,
-            "User-Agent": self.user_agent,
-        }
+        headers["Authorization"] = "Bot " + self.token
+        headers["User-Agent"] = self.user_agent
 
         if form is not None:
             headers["Content-Type"] = "multipart/form-data"
-
-            if json is not None:
-                form.append({"name": "payload_json", "value": jsonlib.dumps(json)})
-            json = None
 
         elif json is not None:
             headers["Content-Type"] = "application/json"
@@ -114,18 +123,16 @@ class RESTClient:
         await self.global_ratelimit.wait()
 
         for _ in range(5):
+            kwargs: MutableMapping[str, Any] = {"headers": headers}
             if form is not None:
-                real_form = form_factory()
-            else:
-                real_form = None
+                kwargs["data"] = form.build()
+            if json is not None:
+                kwargs["json"] = json.build()
+            if params is not None:
+                kwargs["params"] = params.build()
 
             async with self.session.request(
-                route.method,
-                route.url,
-                headers=headers,
-                data=real_form,
-                json=json,
-                params=params,
+                route.method, route.url, **kwargs
             ) as response:
                 text = await response.text(encoding="utf-8")
 
@@ -134,8 +141,7 @@ class RESTClient:
                         data = jsonlib.loads(text)
                     except jsonlib.JSONDecodeError:
                         lock.release()
-                        # TODO: raise error here
-                        break
+                        raise HTTPException(response.status, text)
 
                     if data.get("global", False):
                         self.global_ratelimit.clear()
@@ -146,10 +152,14 @@ class RESTClient:
                         self.global_ratelimit.set()
                     continue
 
-                ratelimit_remaining = response.headers.get("X-Ratelimit-Remaining")
+                ratelimit_remaining = response.headers.get(
+                    "X-Ratelimit-Remaining"
+                )
                 if ratelimit_remaining == "0":
                     reset_after = float(response.headers.get("X-Ratelimit-Reset-After"))  # type: ignore
-                    asyncio.get_event_loop().call_later(reset_after, lock.release)
+                    asyncio.get_event_loop().call_later(
+                        reset_after, lock.release
+                    )
                 else:
                     lock.release()
 
@@ -169,3 +179,35 @@ class RESTClient:
                     raise exc
 
         raise TooManyRetries("maximum retry limit reached")
+
+    def build_request(
+        self,
+        *,
+        route: Route,
+        json: Optional[JSONBuilder] = None,
+        form: Optional[FormBuilder] = None,
+        params: Optional[ParamsBuilder] = None,
+        reason: Optional[str] = None,
+        headers: Optional[Mapping[str, Any]] = None,
+    ) -> Request:
+        """ See the documentation for dapi.rest.client.RESTClient.request
+        for information on the parameters.
+
+        Returns
+        -------
+        dapi.rest.request.Request
+            A request object that can be awaited later (and inspect
+            the parameters).
+        """
+
+        return Request(
+            self.request,
+            {
+                "route": route,
+                "json": json,
+                "form": form,
+                "params": params,
+                "reason": reason,
+                "headers": headers,
+            },
+        )
