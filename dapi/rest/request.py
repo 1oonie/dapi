@@ -1,4 +1,4 @@
-from typing import Callable, Awaitable, Mapping, Any
+from typing import Any, Awaitable, Callable, Mapping
 
 import attr
 

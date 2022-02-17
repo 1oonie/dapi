@@ -1,4 +1,4 @@
-from typing import Any, Mapping, List, Optional, Tuple, Union
+from typing import Any, List, Mapping, Optional, Tuple, Union
 
 import attr
 

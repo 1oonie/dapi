@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, MutableMapping, Optional, Mapping, MutableSequence
-from urllib import parse
-import json as jsonlib
 import copy
+import json as jsonlib
+from typing import Any, Mapping, MutableMapping, MutableSequence, Optional
+from urllib import parse
 
-import attr
 import aiohttp
+import attr
 
 __all__ = ("JSONBuilder", "ParamsBuilder", "FormBuilder")
 

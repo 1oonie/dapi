@@ -7,11 +7,11 @@ import aiohttp
 import attr
 
 from .. import __version__
+from .builders import FormBuilder, JSONBuilder, ParamsBuilder
 from .errors import HTTPException, TooManyRetries
+from .request import Request
 from .response import Response
 from .route import Route
-from .builders import FormBuilder, JSONBuilder, ParamsBuilder
-from .request import Request
 
 __all__ = ("RESTClient",)
 
