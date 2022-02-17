@@ -12,7 +12,7 @@ __all__ = ("JSONBuilder", "ParamsBuilder", "FormBuilder")
 
 
 @attr.define(init=False)
-class JSONBuilder(Mapping[str, Any]):
+class JSONBuilder:
     """Represents a JSON object"""
 
     inner: MutableMapping[str, Any] = attr.field(init=False)
@@ -57,7 +57,7 @@ class JSONBuilder(Mapping[str, Any]):
 
 
 @attr.define(init=False)
-class ParamsBuilder(Mapping[str, str]):
+class ParamsBuilder:
     """Represents the parameters of the query string"""
 
     inner: MutableMapping[str, str] = attr.field(init=False)

@@ -45,6 +45,8 @@ class RESTClient:
     """
 
     buckets: MutableMapping[str, asyncio.Lock] = attr.field(init=False)
+    """ Mapping of buckets to locks """
+
     global_ratelimit: asyncio.Event = attr.field(init=False)
 
     def __attrs_post_init__(self):
@@ -62,7 +64,7 @@ class RESTClient:
         reason: Optional[str] = None,
         headers: Optional[Mapping[str, Any]] = None,  # type: ignore
     ) -> Response:
-        """Makes a HTTP request to the provided `Route`.
+        """Makes a HTTP request to the provided dapi.rest.routes.Route.
 
         Parameters
         ----------
@@ -118,9 +120,9 @@ class RESTClient:
             self.buckets[route.bucket] = asyncio.Lock()
 
         lock = self.buckets[route.bucket]
-        await lock.acquire()
 
         await self.global_ratelimit.wait()
+        await lock.acquire()
 
         for _ in range(5):
             kwargs: MutableMapping[str, Any] = {"headers": headers}
